@@ -1,0 +1,12 @@
+# Windows 构建依赖（草稿，未验证——待首次 GitHub Actions CI 跑通后再 pin 确切版本）。
+# 与 Mac 版(requirements-build.txt)差异：
+#   - 去掉 pyobjc-*（macOS 专用）
+#   - 加 pythonnet（pywebview 的 Windows EdgeChromium/WinForms 后端经 clr 依赖它）
+# 白名单只列真实依赖、绝不含计量栈(numpy/scipy/...)——体积根治同 Mac。
+pywebview==6.2.1
+pythonnet>=3.0.3        # pywebview Windows 后端(clr);版本待 CI 验
+pystray==0.19.5
+pillow==10.4.0
+six==1.17.0
+watchdog==6.0.0
+pyinstaller==6.20.0

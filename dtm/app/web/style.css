@@ -1,0 +1,249 @@
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #111827;
+  background: #f4f4f5;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 顶部栏:窄屏/DPI 缩放时允许换行,按钮永远有地方放(不再被文档名挤掉) */
+#topbar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 12px;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  flex: 0 0 auto;
+}
+#topbar .btn { flex: 0 0 auto; }   /* 按钮不被压缩、不换行内部 */
+.brand-block { display: flex; flex-direction: column; gap: 1px; flex: 0 0 auto; }
+.brand { font-weight: 700; font-size: 15px; }
+/* 当前守护的文档名:显眼但次于品牌;收窄 + 可缩,过长省略,绝不挤垮按钮行 */
+.doc-name {
+  font-size: 12px; font-weight: 600; color: #2563eb;
+  max-width: 160px; flex: 0 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.doc-name:empty { display: none; }
+#folderSelect {
+  font-size: 14px; padding: 5px 8px;
+  border: 1px solid #d1d5db; border-radius: 8px; background: #fff;
+}
+/* 开机自动守护开关:靠右、与顶栏按钮同档低调 */
+.switch {
+  margin-left: auto; flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; color: #374151; cursor: pointer; white-space: nowrap;
+}
+.switch input { cursor: pointer; width: 15px; height: 15px; accent-color: #2563eb; }
+
+/* 仓库自检告警:坏了亮红条,小白开窗就看到(持久,随状态自动显隐) */
+.health-warn {
+  flex: 0 0 auto; padding: 10px 16px;
+  background: #fef2f2; color: #991b1b; font-size: 13px; font-weight: 600;
+  border-bottom: 1px solid #fecaca;
+}
+.health-warn[hidden] { display: none; }
+
+/* 裸奔回看告警:守护刚才停过(已恢复),黄条提醒"那段没保护",可关 */
+.downtime-warn {
+  flex: 0 0 auto; padding: 9px 16px;
+  display: flex; align-items: center; gap: 10px;
+  background: #fffbeb; color: #92400e; font-size: 13px;
+  border-bottom: 1px solid #fde68a;
+}
+.downtime-warn[hidden] { display: none; }
+.downtime-warn .msg { flex: 1; }
+
+/* 归档持久条:故意的"已停止记录"(好事),用平静的石板灰蓝——区别于红(损坏)/黄(裸奔异常) */
+.archived-banner {
+  flex: 0 0 auto; padding: 9px 16px;
+  display: flex; align-items: center; gap: 10px;
+  background: #f1f5f9; color: #334155; font-size: 13px; font-weight: 600;
+  border-bottom: 1px solid #cbd5e1;
+}
+.archived-banner[hidden] { display: none; }
+.archived-banner .msg { flex: 1; }
+
+/* 主体:左树 + 右相册 */
+main { flex: 1 1 auto; display: flex; min-height: 0; position: relative; }
+/* 选中归档库:界面冻结态——去饱和灰调 + 右上角「已归档」角标,与活跃库一眼可辨(强对比) */
+main.archived-view { filter: grayscale(1) opacity(0.78); }   /* 全灰+压暗:冻结感更强,纯灰不撞任何告警色相 */
+main.archived-view::after {
+  content: "已归档"; position: absolute; top: 12px; right: 18px; z-index: 5;
+  font-size: 12px; font-weight: 700; color: #475569;
+  background: #e2e8f0; padding: 3px 11px; border-radius: 999px;
+  pointer-events: none;
+}
+.pane-label { color: #6b7280; font-size: 12px; margin-bottom: 8px; }
+
+.tree-pane {
+  width: 61.8%; max-width: none;   /* 树升主视图:黄金比 0.618(原 42%/上限 460px 的配角) */
+  border-right: 1px solid #e5e7eb;
+  background: #fff; padding: 14px 16px;
+  overflow: auto;
+}
+.tree-pane.collapsed { display: none; }
+
+/* 两栏之间可拖拽的分隔条:用户自定义树↔相册比例;树折叠时一并隐藏 */
+.pane-divider {
+  flex: 0 0 12px; cursor: col-resize;
+  background: #ececed; border-left: 1px solid #d1d5db; border-right: 1px solid #e5e7eb;
+  display: flex; align-items: center; justify-content: center;
+}
+.pane-divider:hover, .pane-divider.drag { background: #d8dade; }
+.pane-divider .grip { display: flex; flex-direction: column; gap: 3px; }
+.pane-divider .grip i { width: 3px; height: 3px; border-radius: 50%; background: #9ca3af; }
+#treePane.collapsed + .pane-divider { display: none; }
+
+.tree-hint { color: #9ca3af; font-size: 11px; font-weight: 400; margin-left: 6px; }
+#treeBody { overflow: auto; text-align: center; }   /* 配合 renderTree 的内容裁宽 → 树整体居中,不贴左 */
+#treeSvg { display: inline-block; font-family: inherit; overflow: visible; }   /* 悬停放大不被 viewBox 裁掉 */
+/* 文字不接收鼠标:否则悬停放大时偏在右侧的标签会移开光标→反复进出→节点反复缩放横跳。
+   只让圆点/命中区驱动悬停,圆点围绕自身中心放大、光标始终在内→稳定不跳。 */
+#treeSvg text { user-select: none; pointer-events: none; }
+#treeSvg g.lm { transition: transform .12s ease; }
+#treeSvg g.lm:hover text { font-weight: 800; }
+/* 簇展开:新露出的成员/收起头淡入(只在 toggle 那次渲染,轮询重渲不带此 class、不闪) */
+@keyframes lmFadeIn { from { opacity: 0; } to { opacity: 1; } }
+#treeSvg g.just-expanded { animation: lmFadeIn .28s ease; }
+#treeSvg g.collapse-ctl { transition: transform .12s ease; }   /* 收起按钮悬停放大要顺滑 */
+
+.album-pane { flex: 1 1 auto; min-width: 240px; padding: 10px 14px; overflow: auto; background: #fafafa; }
+#album { display: flex; flex-direction: column; gap: 7px; }
+.empty { color: #9ca3af; font-size: 14px; }
+
+/* 相册折叠段:与树的簇同步;靛紫高亮(避开蓝=当前/主线、琥珀=里程碑) */
+.fold {
+  position: relative; padding-left: 14px; border-radius: 6px;
+  border-left: 3px solid #d1d5db; transition: border-color .2s, background .2s;
+}
+.fold.active { border-left-color: #8b5cf6; background: #f5f3ff; }
+.fold-head {
+  cursor: pointer; user-select: none; font-size: 12.5px; color: #6b7280;
+  padding: 8px 6px; display: flex; align-items: center; gap: 6px;
+}
+.fold.active .fold-head { color: #6d28d9; font-weight: 600; }
+.fold-head .chev { display: inline-block; transition: transform .2s; }
+.fold.open .fold-head .chev { transform: rotate(90deg); }
+.fold-body {
+  overflow: hidden; max-height: 0; transition: max-height .3s ease;
+  display: flex; flex-direction: column; gap: 7px;
+}
+.fold.open .fold-body { max-height: 9000px; padding: 2px 0 6px; }
+
+/* 卡片 */
+.card {
+  position: relative; overflow: hidden;
+  background: #fff; border-radius: 9px; padding: 9px 12px 9px 15px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  border: 2px solid transparent;
+}
+.card.current { border-color: #2563eb; }
+.card.flash { box-shadow: 0 0 0 3px #93c5fd; }
+.lane-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+
+.card-top { display: flex; align-items: flex-start; gap: 9px; }
+.ficon {
+  width: 32px; height: 32px; border-radius: 7px;
+  color: #fff; font-weight: 700; font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+  flex: 0 0 auto;
+}
+.card-main { flex: 1; min-width: 0; }
+.title { font-weight: 700; font-size: 15px; line-height: 1.3; word-break: break-word; }
+.card-sub { font-size: 12px; margin-top: 2px; }
+.card-sub .abs { color: #111827; font-weight: 500; }
+.card-sub .rel { color: #9ca3af; }
+
+.card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: 0 0 auto; }
+.badge {
+  background: #fde68a; color: #92400e; font-size: 11px;
+  padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 3px;
+}
+.badge-x {
+  border: none; background: none; cursor: pointer; padding: 0 0 0 1px;
+  color: #b45309; font-size: 14px; line-height: 1; opacity: .55;
+}
+.badge-x:hover { opacity: 1; color: #92400e; }
+.here { color: #1d4ed8; font-weight: 700; font-size: 12px; white-space: nowrap; }
+
+/* 文件行 */
+.files { margin-top: 7px; display: flex; flex-direction: column; gap: 3px; }
+.file-row {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; color: #374151;
+}
+.fname { word-break: break-word; }
+.up { color: #dc2626; }    /* 变大=红▲ */
+.down { color: #16a34a; }  /* 变小=绿▼ */
+
+/* 动作按钮 */
+.actions { margin-top: 9px; display: flex; gap: 7px; }
+.btn {
+  font-size: 12px; padding: 4px 11px;
+  border: 1px solid #d1d5db; border-radius: 7px;
+  background: #fff; color: #111827; cursor: pointer;
+}
+.btn:hover { background: #f3f4f6; }
+.btn.small { font-size: 12px; padding: 3px 10px; }
+.btn.ghost { border-color: transparent; color: #6b7280; }
+.btn.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+.btn.primary:hover { background: #1d4ed8; }
+
+/* 内联输入(加备注/标里程碑) */
+.inline-input { margin-top: 10px; display: flex; gap: 6px; }
+.inline-input input {
+  flex: 1; font-size: 13px; padding: 5px 8px;
+  border: 1px solid #d1d5db; border-radius: 7px;
+}
+
+/* 还原前的人话确认 */
+.inline-input.confirm {
+  flex-direction: column; align-items: stretch; gap: 8px;
+  background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px;
+}
+.confirm-msg { font-size: 13px; color: #374151; line-height: 1.5; }
+.confirm-btns { display: flex; gap: 8px; }
+
+/* 还原结果:持久提示(不自动消失)+「在访达中打开」副本,补还原闭环 */
+.restore-result {
+  position: fixed; left: 50%; bottom: 56px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; max-width: 84%;
+  background: #fff; border: 1px solid #16a34a; border-radius: 10px;
+  padding: 10px 14px; box-shadow: 0 6px 24px rgba(0, 0, 0, .14);
+  font-size: 13px; z-index: 50;
+}
+.restore-result[hidden] { display: none; }
+.restore-result .msg { color: #14532d; }
+
+/* 通用确认弹窗(移除库等需要拦一下的动作) */
+.modal {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0, 0, 0, .3);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal[hidden] { display: none; }
+.modal-box {
+  background: #fff; border-radius: 12px; padding: 18px 20px;
+  max-width: 360px; box-shadow: 0 10px 40px rgba(0, 0, 0, .2);
+}
+.modal-msg { font-size: 14px; color: #374151; line-height: 1.6; margin: 0 0 14px; white-space: pre-line; }
+.modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* toast */
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
+  background: #111827; color: #fff; font-size: 13px;
+  padding: 9px 16px; border-radius: 8px;
+  opacity: 0; pointer-events: none; transition: all .25s;
+  max-width: 80%;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+.toast-undo {
+  margin-left: 12px; border: none; cursor: pointer;
+  background: none; color: #93c5fd; font-size: 13px; font-weight: 700;
+}
+.toast-undo:hover { color: #bfdbfe; text-decoration: underline; }

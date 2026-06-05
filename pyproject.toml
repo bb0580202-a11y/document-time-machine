@@ -1,0 +1,24 @@
+[project]
+name = "doc-time-machine"
+version = "0.1.0"
+description = "纯本地、零配置的文档时光机（Phase 1 CLI）"
+requires-python = ">=3.10"
+dependencies = ["watchdog>=4.0"]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0", "python-docx>=1.1"]
+gui = ["pywebview>=5.0", "pystray>=0.19", "pillow>=10.0"]
+build = ["pyinstaller>=6.0"]
+
+[project.scripts]
+dtm = "dtm.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["dtm*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

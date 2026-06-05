@@ -1,0 +1,11 @@
+# 构建用依赖,pin 到 Phase 2 开发验过能跑的确切版本(别升最新,避免漂移引入没测过的行为)。
+# 取自构建机 dev venv 的 pip freeze(2026-06-03);白名单只列 DTM 真实依赖,绝不含计量栈(numpy/scipy/...)。
+pywebview==6.2.1
+pystray==0.19.5
+pillow==10.4.0
+pyobjc-core==12.2
+pyobjc-framework-Cocoa==12.2
+pyobjc-framework-Quartz==12.2
+six==1.17.0
+watchdog==6.0.0
+pyinstaller==6.20.0

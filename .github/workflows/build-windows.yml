@@ -1,0 +1,31 @@
+# GitHub Actions：云端 Windows(x64) 构建 doc-time-machine.exe【草稿，待首次跑通】。
+# 妙处：用 GitHub 免费的 windows 云机构建,不需要任何本地 Windows 机器。
+# 用法：推到 GitHub 后,在仓库 Actions 页面点 "build-windows" → Run workflow（workflow_dispatch）。
+#       跑完在该次运行页面下载 artifact「doc-time-machine-windows」(zip,含 .exe 文件夹)。
+#       下载在你 Mac 上做(Mac 有网/能登 GitHub)→ 拷 U 盘 → 搬离线 Win 机双击测。Win 机全程不碰 GitHub。
+name: build-windows
+on:
+  workflow_dispatch:        # 手动触发(Actions 页面点 Run)
+  push:
+    paths:                  # 只在这些构建文件变动时自动跑,别每次 push 都烧 CI 额度
+      - 'scripts/build_windows.ps1'
+      - 'doc-time-machine-windows.spec'
+      - 'requirements-build-windows.txt'
+      - '.github/workflows/build-windows.yml'
+      - 'dtm/app/runtime.py'        # bundled_git_path 的 Windows 分支改动也重建
+jobs:
+  build:
+    runs-on: windows-latest         # GitHub 免费 x64 Windows 云机,自带网络
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build (PyInstaller + MinGit)
+        run: pwsh scripts/build_windows.ps1
+      - name: Upload .exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: doc-time-machine-windows
+          path: dist/doc-time-machine/   # 下载这个文件夹 = 自带一切的 .exe
+          if-no-files-found: error

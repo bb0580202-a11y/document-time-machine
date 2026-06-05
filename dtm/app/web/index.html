@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>文档时光机</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand-block">
+      <span class="brand">📁 文档时光机</span>
+      <span id="docName" class="doc-name" title="当前正在守护的文档"></span>
+    </div>
+    <select id="folderSelect" aria-label="选择文件夹"></select>
+    <button id="addFolderBtn" class="btn small ghost" title="选一个文件夹交给时光机看管">＋ 添加文件夹</button>
+    <button id="openFolderBtn" class="btn small ghost" title="在访达里打开当前看管的文件夹">📂 打开文件夹</button>
+    <button id="archiveBtn" class="btn small ghost" title="归档:停止记录新版本,但保留在列表、历史照样可翻,随时可继续记录">🗄 归档</button>
+    <button id="resumeBtn" class="btn small ghost" title="继续记录:恢复看管这个文件夹,并补记一版当前状态" hidden>▶ 继续记录</button>
+    <button id="removeFolderBtn" class="btn small ghost" title="不再看管当前文件夹(你的文件和历史都留在原处,只是停止自动备份)">✕ 移除</button>
+    <button id="treeToggle" class="btn small ghost" title="展开/收起版本树地图">⊟ 版本树</button>
+    <button id="refreshBtn" class="btn small ghost" title="重新读取最新版本">↻ 刷新</button>
+    <label id="autostartToggle" class="switch" title="开机后自动在后台守护(下次开机生效)">
+      <input type="checkbox" id="autostartChk"> 开机自动守护
+    </label>
+  </header>
+
+  <div id="healthWarn" class="health-warn" hidden></div>
+  <div id="downtimeWarn" class="downtime-warn" hidden></div>
+  <div id="archivedBanner" class="archived-banner" hidden>
+    <span class="msg">🗄 已归档 · 已停止记录新版本（历史都在，可随时继续记录）</span>
+    <button class="btn small primary" data-x="resume">▶ 继续记录</button>
+  </div>
+
+  <main>
+    <aside id="treePane" class="tree-pane">
+      <div class="pane-label">版本树 · 地图<span id="treeHint" class="tree-hint"></span></div>
+      <div id="treeBody"><svg id="treeSvg" xmlns="http://www.w3.org/2000/svg"></svg></div>
+    </aside>
+    <div id="paneDivider" class="pane-divider" title="拖动调整树和相册的宽度比例"><span class="grip"><i></i><i></i><i></i></span></div>
+    <section id="albumPane" class="album-pane">
+      <div class="pane-label">相册 · 全部版本</div>
+      <div id="album"></div>
+    </section>
+  </main>
+
+  <div id="restoreResult" class="restore-result" hidden></div>
+
+  <div id="modal" class="modal" hidden>
+    <div class="modal-box">
+      <p class="modal-msg"></p>
+      <div class="modal-btns">
+        <button class="btn primary" data-x="ok">确定</button>
+        <button class="btn ghost" data-x="cancel">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+experiments/_run/
+*.egg-info/
+.DS_Store
+.superpowers/
+build/
+dist/
+
+# ---- 内部开发文档:只留本地,绝不上 GitHub(GitHub 只放代码 + 用户教程) ----
+/docs/README.md
+/docs/design/
+/docs/plans/
+/docs/product-spec/
+/experiments/
