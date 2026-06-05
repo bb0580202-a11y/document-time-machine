@@ -169,6 +169,10 @@ main.archived-view::after {
 }
 .badge-x:hover { opacity: 1; color: #92400e; }
 .here { color: #1d4ed8; font-weight: 700; font-size: 12px; white-space: nowrap; }
+/* 可能损坏标记:红系,与琥珀里程碑/蓝当前区分开 */
+.badge.warn { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; font-weight: 600; }
+.card.corrupt { border-left: 3px solid #ef4444; }
+.filewarn { color: #b91c1c; font-weight: 700; cursor: help; }
 
 /* 文件行 */
 .files { margin-top: 7px; display: flex; flex-direction: column; gap: 3px; }

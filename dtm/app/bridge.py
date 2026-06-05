@@ -10,7 +10,7 @@ from dataclasses import asdict
 from pathlib import Path
 import webview
 from ..engine.repo import GitRepo
-from ..engine import registry, treemap, backup, identity, meta, restore, integrity, listing, health, probe
+from ..engine import registry, treemap, backup, identity, meta, restore, integrity, listing, health, probe, flags
 from ..engine.messages import parse_message, humanize_time
 from ..engine.lock import RepoLock
 from ..engine.errors import DtmError
@@ -104,9 +104,19 @@ class Bridge:
             pass
 
     def check_health(self, folder: str) -> dict:
-        """仓库自检结果给 GUI:坏了前端亮红横幅(小白可靠看到的告警面)。便宜检查、不修复。"""
+        """仓库自检结果给 GUI:坏了前端亮红横幅(小白可靠看到的告警面)。便宜检查、不修复。
+        叠加守护后台深度体检(fsck)的结论:HEAD 坏更紧急、优先;HEAD 好再看 fsck 有没有
+        逮到历史深处坏块(守护写 .git/dtm_fsck.json,这里只读,不在开窗热路径跑 fsck)。"""
         ok, reason = health.check_repo(GitRepo(folder))
-        return {"ok": ok, "reason": reason}
+        if not ok:
+            return {"ok": ok, "reason": reason}
+        try:
+            data = json.loads((Path(folder) / ".git" / "dtm_fsck.json").read_text(encoding="utf-8"))
+            if not data.get("ok", True):
+                return {"ok": False, "reason": data.get("reason") or ""}
+        except (OSError, ValueError):
+            pass
+        return {"ok": True, "reason": ""}
 
     def get_treemap(self, folder: str) -> dict:
       with probe.profile("get_treemap"):
@@ -127,6 +137,7 @@ class Bridge:
         head = repo.head()
         notes = meta.all_notes(repo)
         tags = meta.all_tags(repo)
+        corrupt = flags.corrupt_map(repo)   # {版本: [可能损坏的文件]}，备份时记的持久标记
         files_map = repo.changed_files_map()
         specs = [f"{cid}{suf}:{name}"
                  for cid, files in files_map.items() for name in files
@@ -152,6 +163,7 @@ class Bridge:
                           listing.changed_files_batch(e.commit_id,
                                                       files_map.get(e.commit_id, []), sizes)],
                 "is_current": e.commit_id == head,
+                "corrupt_files": corrupt.get(e.commit_id, []),   # 这一版可能损坏的文件→相册显 ⚠
             })
         cards.sort(key=lambda c: c["abs_seconds"], reverse=True)   # 最新在前
         return cards

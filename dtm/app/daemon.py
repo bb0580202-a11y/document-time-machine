@@ -16,7 +16,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from ..engine import registry, probe
 from ..engine.repo import GitRepo
-from ..engine.health import check_repo
+from ..engine.health import check_repo, deep_check
 from ..engine.watcher import watch
 from .reconcile import plan_reconcile
 from .logging_setup import setup_file_logging
@@ -25,6 +25,8 @@ from . import gui
 from . import single_instance
 
 _CFG_DEBOUNCE = 1.0   # 秒:coalesce folders.json 的 os.replace 事件抖动
+_DEEP_CHECK_FIRST = 60.0       # 秒:启动后多久首次深度体检(避开启动 IO 高峰)
+_DEEP_CHECK_INTERVAL = 6 * 3600  # 秒:之后每隔多久全量 fsck 一次(低频、空闲后台,不扰开窗)
 
 
 def should_open_window(cfg_dir: Path) -> bool:
@@ -129,6 +131,41 @@ class Daemon:
         if not ok:
             logging.warning("仓库自检:%s 历史可能损坏——%s", path, reason)
 
+    # ---------- 深度体检(全量 fsck,逮坏块,出事前预警) ----------
+    def start_deep_check(self):
+        """启动后 _DEEP_CHECK_FIRST 秒首检,之后每 _DEEP_CHECK_INTERVAL 一次;quit 经 _beat_stop 叫停。
+        全量 fsck 较贵,放空闲后台低频跑——逮"历史深处 blob 悄悄坏掉"(check_repo 看 HEAD 看不到)。"""
+        def _loop():
+            if self._beat_stop.wait(_DEEP_CHECK_FIRST):
+                return                 # 还没到首检就被 quit 叫停
+            self.deep_check_all()
+            while not self._beat_stop.wait(_DEEP_CHECK_INTERVAL):
+                self.deep_check_all()
+        threading.Thread(target=_loop, daemon=True).start()
+
+    def deep_check_all(self):
+        with self._lock:
+            paths = [t[0] for t in self.running.values()]
+        for path in paths:
+            try:
+                self._deep_check_one(path)
+            except Exception:
+                logging.exception("深度体检失败:%s", path)
+
+    def _deep_check_one(self, path):
+        """全量 fsck 一个库 → 把结论写进 .git/dtm_fsck.json(原子),GUI 的红横幅据此显隐。"""
+        ok, reason = deep_check(GitRepo(path))
+        sidecar = Path(path) / ".git" / "dtm_fsck.json"
+        tmp = sidecar.with_name(sidecar.name + f".{os.getpid()}.tmp")
+        try:
+            tmp.write_text(json.dumps({"ok": ok, "reason": reason, "ts": time.time()},
+                                      ensure_ascii=False), encoding="utf-8")
+            os.replace(tmp, sidecar)
+        except OSError:
+            pass
+        if not ok:
+            logging.warning("深度体检:%s —— %s", path, reason)
+
     def _on_cfg_change(self):
         """去抖:最后一次 config 事件后静默 _CFG_DEBOUNCE 秒才结算一次。"""
         if self._cfg_timer:
@@ -200,6 +237,7 @@ class Daemon:
             self.reconcile()      # 启动:把当前 active 全起来(与动态新增走同一条 reconcile 路径)
         with probe.profile("startup.config_watch"):
             self.start_config_watch()
+        self.start_deep_check()   # 后台低频全量 fsck:出事前逮坏块,结论写 .git/dtm_fsck.json
         menu = pystray.Menu(
             pystray.MenuItem("打开主界面", self.open_window, default=True),
             pystray.MenuItem("退出", self.quit),

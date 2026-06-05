@@ -90,11 +90,25 @@ class GitRepo:
         return entries
 
     def show_file(self, commit_id: str, rel_path: str) -> bytes:
-        with subprocess_prep():
-            r = subprocess.run(
-                [git_path(), "-C", str(self.folder), "show", f"{commit_id}:{rel_path}"],
-                capture_output=True, check=True, **subprocess_kwargs(),
+        # 取二进制 blob，故绕开 _git 的 text 解码；但错误必须同样翻成人话(INV-5/6)：
+        # 这是"还原取数据"的唯一入口，失败=用户正举着救命稻草，绝不能漏天书。
+        if not git_available():
+            raise GitUnavailableError(
+                "找不到 git 程序，无法读取历史版本。请先安装 git 后重试。"
             )
+        try:
+            with subprocess_prep():
+                r = subprocess.run(
+                    [git_path(), "-C", str(self.folder), "show", f"{commit_id}:{rel_path}"],
+                    capture_output=True, check=True, **subprocess_kwargs(),
+                )
+        except subprocess.CalledProcessError as e:
+            name = Path(rel_path).name
+            raise DtmError(
+                f"这一版的「{name}」读不出来了——它的历史数据可能已损坏"
+                f"（例如硬盘坏块）。这一版恐怕找不回了，但你其它版本通常不受影响，"
+                f"请试试还原相邻的版本。"
+            ) from e
         return r.stdout
 
     def files_changed(self, commit_id: str) -> list[str]:
@@ -167,3 +181,11 @@ class GitRepo:
 
     def gc(self) -> None:
         self._git("gc", "--aggressive", "--quiet")
+
+    def fsck(self) -> tuple[int, str]:
+        """全量 git fsck：重算每个对象的 SHA-1，能逮"历史深处某个 blob 悄悄坏掉"
+        （连通性检查 --connectivity-only 逮不到，因坏块后对象仍可达，只是内容变了）。
+        返回 (returncode, 合并输出)。check=False：有坏对象时 git 返回非 0，不抛、交调用方判。
+        贵（要读全部对象）→ 只在守护后台低频跑，不进开窗热路径。"""
+        r = self._git("fsck", "--no-progress", "--no-dangling", check=False)
+        return r.returncode, ((r.stderr or "") + (r.stdout or "")).strip()

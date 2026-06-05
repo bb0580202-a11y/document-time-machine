@@ -10,6 +10,7 @@ from .repo import GitRepo
 from .ignore import classify, default_gitignore
 from .integrity import check
 from .messages import build_message
+from . import flags
 
 
 # dtm 自己的簿记文件：仍会被提交，但不算"用户内容"，不进清单/摘要（INV-6 不暴露管道）。
@@ -59,12 +60,21 @@ def do_backup(repo: GitRepo, folder: Path, source: str = "auto") -> BackupResult
     msg = build_message(iso, files, total, source)
     cid = repo.commit(msg)
 
-    # 完整性校验：对纳入的 zip 系/pdf 文件，失败则重试一次（§6.6）
+    # 完整性自检：对纳入的 zip 系/pdf 文件做一次"能否打开"体检。
+    # 坏的是 Word/PDF 写出来的源文件本身——我们只是忠实存下了它，重存一遍还是同样的
+    # 坏字节，修不了别人写坏的文件。故只如实告警，绝不谎称"已重新备份"(INV-5：诚实)；
+    # 你之前的正常版本都安全，可随时还原回去。坏文件持久记进 .git/dtm_corrupt.json：
+    # 守护后台自动备份时没开窗，这条告警飘走也不丢——开窗后相册卡片仍显 ⚠（flags）。
+    corrupt = []
     for rel in included:
         ok, reason = check(folder / rel)
         if not ok:
-            warnings.append(f"{reason}，已自动重新备份一次。")
-            repo.add_all()
-            if repo.has_staged_changes():
-                cid = repo.commit(build_message(iso, files, total, source))
+            warnings.append(
+                f"{reason}。这一版的文件本身可能就是坏的（不是备份出的问题，"
+                f"是保存下来的文件就这样），已照原样存档；你之前的正常版本都还在，"
+                f"可随时还原回去。"
+            )
+            corrupt.append(rel)
+    if corrupt:
+        flags.record_corrupt(repo, cid, corrupt)
     return BackupResult(committed=True, commit_id=cid, manifest=included, warnings=warnings)

@@ -711,8 +711,9 @@ function renderFold(cl, cardById) {
 }
 
 function renderCard(c) {
+  const corrupt = c.corrupt_files || [];          // 这一版可能损坏的文件(备份时自检没过)
   const el = document.createElement("div");
-  el.className = "card" + (c.is_current ? " current" : "");
+  el.className = "card" + (c.is_current ? " current" : "") + (corrupt.length ? " corrupt" : "");
   el.id = "card-" + c.full_id;
   el.dataset.id = c.full_id;
 
@@ -723,12 +724,19 @@ function renderCard(c) {
     : `<span class="rel">${esc(c.relative)}</span>`;
   const milestones = (c.milestones || []).map((m) =>
     `<span class="badge">★ ${esc(m)}<button class="badge-x" data-act="del-tag" data-tag="${esc(m)}" title="删除这个里程碑(版本不受影响)">×</button></span>`).join("");
+  const warn = corrupt.length
+    ? `<span class="badge warn" title="这一版的文件保存时可能就是坏的（不是备份的问题），建议还原相邻的好版本">⚠ 可能损坏</span>`
+    : "";
   const here = c.is_current ? '<span class="here">📍 你在这里</span>' : "";
   const delNoteBtn = c.note
     ? '<button class="btn ghost" data-act="del-note" title="删除备注(版本不受影响)">删备注</button>'
     : "";
   const filesHtml = (c.files || [])
-    .map((f) => `<div class="file-row"><span class="fname">${esc(f.name)} ${arrow(f.delta_sign)}</span></div>`)
+    .map((f) => {
+      const bad = corrupt.includes(f.name)
+        ? ' <span class="filewarn" title="这个文件这一版可能是坏的">⚠</span>' : "";
+      return `<div class="file-row"><span class="fname">${esc(f.name)} ${arrow(f.delta_sign)}${bad}</span></div>`;
+    })
     .join("");
 
   el.innerHTML = `
@@ -739,7 +747,7 @@ function renderCard(c) {
         <div class="title" title="完整时间 ${esc(c.abs_seconds)}">${esc(title)}</div>
         <div class="card-sub" title="完整时间 ${esc(c.abs_seconds)}">${sub}</div>
       </div>
-      <div class="card-right">${milestones}${here}</div>
+      <div class="card-right">${warn}${milestones}${here}</div>
     </div>
     <div class="files">${filesHtml}</div>
     <div class="actions">
@@ -775,7 +783,12 @@ function onAlbumClick(e) {
   const fullId = card.dataset.id;
   const act = btn.dataset.act;
   if (act === "restore-version") {
-    openConfirm(card, "把这一版另存一份放到文件夹旁边,不会动你现在正在用的文件。", () => doRestoreVersion(fullId));
+    const cd = CARDS.find((x) => x.full_id === fullId) || {};
+    const bad = (cd.corrupt_files || []).length;
+    const msg = bad
+      ? "⚠ 这一版的文件保存时可能就是坏的，还原出来也许打不开。\n建议改还原相邻的好版本。仍要还原这一版吗？\n（会另存一份到旁边，不动你现在正在用的文件）"
+      : "把这一版另存一份放到文件夹旁边,不会动你现在正在用的文件。";
+    openConfirm(card, msg, () => doRestoreVersion(fullId));
   } else if (act === "note") {
     openInput(card, "给这一版起个名字(如:导师说结论太弱)", (txt) => pywebview.api.set_note(CURRENT_FOLDER, fullId, txt));
   } else if (act === "tag") {

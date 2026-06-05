@@ -1,5 +1,7 @@
+import subprocess
+
 from dtm.engine.repo import GitRepo
-from dtm.engine.health import check_repo
+from dtm.engine.health import check_repo, deep_check
 
 
 def _committed_repo(folder):
@@ -42,3 +44,32 @@ def test_check_repo_detects_broken_ref(folder):
     (folder / ".git" / ref).write_text("0" * 40 + "\n")
     ok, reason = check_repo(repo)
     assert ok is False
+
+
+# ---- 深度体检(全量 fsck,逮历史深处坏块) ----
+
+def test_deep_check_healthy(folder):
+    repo = _committed_repo(folder)
+    ok, reason = deep_check(repo)
+    assert ok is True and reason == ""
+
+
+def test_deep_check_not_a_repo_is_ok(tmp_path):
+    ok, _ = deep_check(GitRepo(tmp_path))
+    assert ok is True
+
+
+def test_deep_check_detects_rotted_blob(folder):
+    # 真造硬盘坏块:把某个 blob 的 loose 对象内容改坏 → fsck 重算 SHA-1 应判坏。
+    # 关键:这是 check_repo(只看 HEAD)逮不到的"历史深处坏块"——deep_check 才逮得到。
+    repo = _committed_repo(folder)
+    blob = subprocess.run(
+        ["git", "-C", str(folder), "rev-parse", "HEAD:a.txt"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    obj = folder / ".git" / "objects" / blob[:2] / blob[2:]
+    obj.chmod(0o644)                       # loose 对象默认只读
+    obj.write_bytes(b"rotted garbage, not a valid zlib git object")
+    ok, reason = deep_check(repo)
+    assert ok is False
+    assert "损坏" in reason                 # 人话告警 + 催"赶紧另拷一份"

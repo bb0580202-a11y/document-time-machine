@@ -208,3 +208,38 @@ def test_resume_backs_up_then_unsets(folder, tmp_path):
     b.resume_folder(uuid)
     assert len(repo.log()) == before + 1            # resume 先补拍一版基线
     assert registry.load(store)[0].archived is False  # 再 archived=false
+
+
+def test_get_album_exposes_corrupt_files(folder, tmp_path):
+    # 备份一个坏 docx → 相册卡片带 corrupt_files,前端据此显 ⚠
+    repo = GitRepo(folder); repo.init(); identity.write_identity(folder)
+    (folder / ".gitignore").write_text(backup.gitignore_text())
+    (folder / "论文.docx").write_bytes(b"PK\x03\x04 broken")
+    backup.do_backup(repo, folder)
+    cards = Bridge(store=tmp_path / "s.json").get_album(str(folder))
+    bad = [c for c in cards if c.get("corrupt_files")]
+    assert bad and "论文.docx" in bad[0]["corrupt_files"]
+
+
+def test_get_album_good_file_no_corrupt(folder, tmp_path):
+    _guarded(folder)                                  # 正常 docx
+    cards = Bridge(store=tmp_path / "s.json").get_album(str(folder))
+    assert all(c["corrupt_files"] == [] for c in cards)
+
+
+def test_check_health_surfaces_deep_check_sidecar(folder, tmp_path):
+    # HEAD 好,但守护后台深度体检(fsck)写了"坏"的 sidecar → 红横幅照样亮
+    _guarded(folder)
+    (folder / ".git" / "dtm_fsck.json").write_text(
+        json.dumps({"ok": False, "reason": "深度体检发现坏块,赶紧另拷一份"}),
+        encoding="utf-8")
+    out = Bridge(store=tmp_path / "s.json").check_health(str(folder))
+    assert out["ok"] is False and "坏块" in out["reason"]
+
+
+def test_check_health_ok_when_sidecar_ok(folder, tmp_path):
+    _guarded(folder)
+    (folder / ".git" / "dtm_fsck.json").write_text(
+        json.dumps({"ok": True, "reason": ""}), encoding="utf-8")
+    out = Bridge(store=tmp_path / "s.json").check_health(str(folder))
+    assert out["ok"] is True
