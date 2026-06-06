@@ -75,7 +75,11 @@ Write-Host "[3/4] PyInstaller 冻结 -> dist/doc-time-machine/"
 Remove-Item -Recurse -Force dist/doc-time-machine -ErrorAction SilentlyContinue
 build/venv-build/Scripts/pyinstaller --noconfirm doc-time-machine-windows.spec
 
+# 把说明 + 协议放进包(解压即见,GPL/第三方合规)
+Copy-Item "docs/使用说明.txt","LICENSE","THIRD_PARTY_LICENSES.md" -Destination "dist/doc-time-machine/" -Force
+
 # ---------- 4/4 产出 ----------
 if (-not (Test-Path dist/doc-time-machine/doc-time-machine.exe)) { throw "没产出 .exe" }
-Write-Host "[4/4] 完成: dist/doc-time-machine/doc-time-machine.exe"
+if (-not (Test-Path "dist/doc-time-machine/使用说明.txt")) { throw "使用说明.txt 没进包" }
+Write-Host "[4/4] 完成: dist/doc-time-machine/doc-time-machine.exe（含使用说明 + 协议）"
 # 安装器(Inno Setup 等)留待后续；先有自带一切的文件夹即可拷 U 盘测试。

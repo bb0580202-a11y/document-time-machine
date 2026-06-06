@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 可复现构建:macOS arm64 .app(默认) / .dmg(加 --dmg)。从 repo 根跑: bash scripts/build_mac.sh [--dmg]
 # 产物落 gitignored build/ + dist/。不依赖 /tmp。
-# 前置:CLT 已装(便携 git 源);python3;出 .dmg 还需 create-dmg(brew install create-dmg)。
+# 前置:CLT 已装(便携 git 源);python3。出 .dmg 用系统自带 hdiutil,无需额外工具。
 set -euo pipefail
 cd "$(dirname "$0")/.."                         # 切到 repo 根
 CLT_GIT="/Library/Developer/CommandLineTools/usr/bin/git"
@@ -31,17 +31,19 @@ echo "[3/4] PyInstaller 冻结 → dist/doc-time-machine.app"
 rm -rf build/doc-time-machine dist/doc-time-machine.app
 build/venv-build/bin/pyinstaller --noconfirm doc-time-machine.spec
 
-# ---------- 4/4 (可选)出 .dmg(拖拽布局) ----------
+# 把协议随包带进 .app(分发即携带,GPL/第三方合规)
+cp LICENSE THIRD_PARTY_LICENSES.md dist/doc-time-machine.app/Contents/Resources/
+
+# ---------- 4/4 (可选)出 .dmg(hdiutil,可靠、不依赖 Finder/create-dmg) ----------
 if [ "${1:-}" = "--dmg" ]; then
-  command -v create-dmg >/dev/null || { echo "✗ 需 create-dmg: brew install create-dmg"; exit 1; }
   echo "[4/4] 打 .dmg → dist/doc-time-machine.dmg"
-  rm -f dist/doc-time-machine.dmg
-  create-dmg \
-    --volname "doc-time-machine" \
-    --window-size 540 380 --icon-size 100 \
-    --icon "doc-time-machine.app" 140 190 \
-    --app-drop-link 400 190 \
-    dist/doc-time-machine.dmg dist/doc-time-machine.app
+  rm -rf build/dmg-stage dist/doc-time-machine.dmg
+  mkdir -p build/dmg-stage
+  cp -R dist/doc-time-machine.app build/dmg-stage/
+  ln -s /Applications build/dmg-stage/Applications      # 拖到此处即装进"应用程序"
+  cp docs/使用说明.txt build/dmg-stage/                  # 用户打开 dmg 就能看到说明
+  hdiutil create -volname "doc-time-machine" -srcfolder build/dmg-stage \
+    -ov -format UDZO dist/doc-time-machine.dmg
   echo "    .dmg 大小: $(du -sh dist/doc-time-machine.dmg | cut -f1)"
 else
   echo "[4/4] 跳过 .dmg(加 --dmg 出盘)"
