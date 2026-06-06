@@ -78,3 +78,7 @@ dtm autostart enable    # 设为开机自启（macOS launchd）；disable 关闭
 
 - Office 是二进制文件，能告诉你"哪个文件、哪一版、变大变小"，但**看不清相邻两版具体改了哪句话**。
 - 常改的大文件版本会占空间，可随时 `dtm gc` 压缩；更彻底的老版本瘦身留给后续版本。
+
+## 开源协议
+
+本项目自己的代码采用 [MIT 协议](LICENSE)。打包时内置的 git 等第三方组件各自沿用原协议、来源见 [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md)（内置 git 为 GPLv2，已附源码出处）。

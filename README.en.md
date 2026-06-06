@@ -85,3 +85,10 @@ A couple of smaller things:
 
 - Office files are stored whole, so it can tell you *which file, which version, bigger or smaller* — but not the exact sentence that changed between two drafts.
 - Versions of a big file you edit a lot will pile up; run `dtm gc` any time to squeeze them. Trimming old versions further is for a later release.
+
+## License
+
+This project's own code is under the [MIT License](LICENSE). The third-party
+components it bundles (git and others) keep their own licenses — see
+[`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md) (the bundled git is GPLv2,
+with its source linked there).
