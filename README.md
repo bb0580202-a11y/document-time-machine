@@ -1,3 +1,5 @@
+[English](README.en.md) · **中文**
+
 # 文档时光机（doc-time-machine）
 
 给写论文的人做的"后悔药"：自动给你的 Word / Excel / PPT / PDF 文件夹存档，
