@@ -56,6 +56,14 @@ class GitRepo:
         self._git("config", "core.filemode", "false")    # 跨盘搬家(exFAT/FAT32 无权限位)不刷虚假改动
         self._git("config", "core.autocrlf", "false")    # 跨平台不改行尾(docx 二进制,保护文本文件)
         self._git("config", "gc.auto", "0")  # 由我们显式控制 gc
+        self.apply_durability_config()
+
+    def apply_durability_config(self) -> None:
+        """断电安全(D6):让 git 提交时 fsync 把对象/引用真正刷到盘,降低硬断电产生
+        半截对象的概率。幂等(git config 写键可重复)→ 存量库守护启动时也可补设。
+        check=False:老 git 不认这两个键也不报错(写进 .git/config 无害,运行时忽略=优雅降级)。"""
+        self._git("config", "core.fsync", "committed", check=False)
+        self._git("config", "core.fsyncMethod", "fsync", check=False)
 
     def is_repo(self) -> bool:
         return (self.folder / ".git").is_dir()

@@ -127,7 +127,9 @@ class Daemon:
 
     def _check_health(self, path):
         """启动/新加一个库时自检:坏了响亮记进 dtm.log(给排查);小白侧的红横幅由 GUI 出。"""
-        ok, reason = check_repo(GitRepo(path))
+        repo = GitRepo(path)
+        repo.apply_durability_config()        # D6:存量库幂等补设断电安全配置(已在后台线程,不堵热路径)
+        ok, reason = check_repo(repo)
         if not ok:
             logging.warning("仓库自检:%s 历史可能损坏——%s", path, reason)
 

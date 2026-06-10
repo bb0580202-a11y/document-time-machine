@@ -31,7 +31,7 @@ def bundled_git_path() -> Path | None:
 
 def daemon_launch_command() -> list[str]:
     """自启拉起守护的命令:冻结=.app 入口本就是守护;开发=python -m。
-    根治 cli.py 硬编码 sys.executable -m(冻结后指错)的老坑。"""
+    根治 cli.py 硬编码 sys.executable -m(冻结后指错)的老坑(CLAUDE.md 第60行点名)。"""
     if getattr(sys, "frozen", False):
         return [sys.executable]
     return [sys.executable, "-m", "dtm.cli", "daemon"]

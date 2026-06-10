@@ -8,7 +8,8 @@ experiments/_run/
 build/
 dist/
 
-# ---- 内部开发文档:只留本地,绝不上 GitHub(GitHub 只放代码 + 用户教程) ----
+# ---- AI/开发内部文档:只留本地,绝不上 GitHub(GitHub 只放代码 + 用户教程) ----
+/CLAUDE.md
 /docs/README.md
 /docs/design/
 /docs/plans/

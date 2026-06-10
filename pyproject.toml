@@ -1,6 +1,6 @@
 [project]
 name = "doc-time-machine"
-version = "0.1.2"
+version = "0.1.3"
 description = "纯本地、零配置的文档时光机（Phase 1 CLI）"
 requires-python = ">=3.10"
 dependencies = ["watchdog>=4.0"]

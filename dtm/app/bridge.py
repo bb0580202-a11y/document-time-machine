@@ -248,11 +248,6 @@ class Bridge:
         else:
             a.uninstall()
 
-    def create_branch(self, folder: str, version_id: str, name: str) -> None:
-        repo = GitRepo(folder)
-        with RepoLock(folder):
-            repo.create_branch(name, version_id)
-
     def verify(self, folder: str, rel_path: str) -> dict:
         ok, reason = integrity.check(Path(folder) / rel_path)
         return {"ok": ok, "reason": reason}

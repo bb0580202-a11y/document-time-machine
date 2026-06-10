@@ -86,14 +86,6 @@ def cmd_note(folder, version_id, text):
     print("已更新备注。" if text else "已清空备注。")
 
 
-def cmd_branch(folder, version_id):
-    repo = _need_repo(folder)
-    import datetime
-    name = f"路线-{datetime.datetime.now():%m%d-%H%M}"
-    repo.create_branch(name, version_id)
-    print(f"已从该版本开出新路线：{name}")
-
-
 def cmd_stats(folder):
     s = stats.repo_stats(_need_repo(folder))
     print(f"历史占用：{s.git_bytes/1024/1024:.1f}MB · 版本数：{s.version_count}")
@@ -170,9 +162,6 @@ def main(argv=None):
     n.add_argument("folder")
     n.add_argument("version_id")
     n.add_argument("text", nargs="?")
-    b = sub.add_parser("branch")
-    b.add_argument("folder")
-    b.add_argument("version_id")
     sub.add_parser("stats").add_argument("folder")
     v = sub.add_parser("verify")
     v.add_argument("folder")
@@ -201,8 +190,6 @@ def main(argv=None):
             cmd_tag(f, a.version_id, a.name)
         elif a.cmd == "note":
             cmd_note(f, a.version_id, a.text)
-        elif a.cmd == "branch":
-            cmd_branch(f, a.version_id)
         elif a.cmd == "stats":
             cmd_stats(f)
         elif a.cmd == "verify":

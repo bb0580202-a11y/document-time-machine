@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .repo import GitRepo
+from .errors import DtmError
 from .backup import do_backup
 
 
@@ -61,7 +62,8 @@ def safe_restore(repo: GitRepo, folder: Path, commit_id: str, rel_path: str) -> 
     folder = Path(folder)
     pre = do_backup(repo, folder, source="pre-restore")  # ① 还原前快照
     out = _export_beside(repo, folder, commit_id, rel_path)  # ② 导出旁边
-    return RestoreResult(restored_path=out, pre_restore_commit=pre.commit_id)
+    # D3:工作区干净时 do_backup 不提交、commit_id 为空 → 回退到当前 HEAD(用户此刻所在版本)
+    return RestoreResult(restored_path=out, pre_restore_commit=pre.commit_id or repo.head())
 
 
 def restore_version(repo: GitRepo, folder: Path, commit_id: str) -> VersionRestoreResult:
@@ -70,6 +72,21 @@ def restore_version(repo: GitRepo, folder: Path, commit_id: str) -> VersionResto
     from . import listing                                 # 延迟 import,避免环
     folder = Path(folder)
     names = [c.name for c in listing.changed_files(repo, commit_id)]
+    # D2:这一版可能含"被删文件"(该版里已不存在)。对它调 show_file 必败,还误报"历史损坏"
+    # 吓人。导出前按 blob_size is None 滤掉删除项,只导出这一版里真实存在的文件。
+    present = [rel for rel in names if repo.blob_size(commit_id, rel) is not None]
+    if not present:
+        # 没有可还原的内容。绝不崩,给人话指向上一版。names 非空=这一版只删了文件,
+        # 点名出来;names 为空(罕见,如只动了 dtm 自有簿记)则不谎称"删了文件"(INV-5 诚实)。
+        if names:
+            which = "、".join(Path(n).name for n in names)
+            msg = (f"这一版的变化是删掉了「{which}」,没有可以还原的内容。"
+                   f"想找回这些文件,请还原它的上一版。")
+        else:
+            msg = "这一版没有可还原的文件内容,请试试还原它的上一版。"
+        raise DtmError(msg)
     pre = do_backup(repo, folder, source="pre-restore")  # ① 还原前快照一次
-    outs = [_export_beside(repo, folder, commit_id, rel) for rel in names]  # ② 逐文件导出
-    return VersionRestoreResult(restored_paths=outs, pre_restore_commit=pre.commit_id)
+    outs = [_export_beside(repo, folder, commit_id, rel) for rel in present]  # ② 逐文件导出
+    # D3:同 safe_restore,工作区干净时回退到 HEAD
+    return VersionRestoreResult(restored_paths=outs,
+                                pre_restore_commit=pre.commit_id or repo.head())

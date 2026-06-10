@@ -47,3 +47,28 @@ def test_init_sets_cross_platform_config(folder):
                                  capture_output=True, text=True).stdout.strip()
     assert g("core.filemode") == "false"
     assert g("core.autocrlf") == "false"
+
+
+def _cfg(folder, key):
+    return subprocess.run(["git", "-C", str(folder), "config", key],
+                          capture_output=True, text=True).stdout.strip()
+
+
+def test_init_sets_durability_config(folder):
+    # D6:断电安全——提交时 fsync 刷盘,降低硬断电产生半截对象的概率
+    repo = GitRepo(folder)
+    repo.init()
+    assert _cfg(folder, "core.fsync") == "committed"
+    assert _cfg(folder, "core.fsyncMethod") == "fsync"
+
+
+def test_apply_durability_config_backfills_existing_repo(folder):
+    # 存量库(早于 D6 建的)守护启动时幂等补设:先抹掉再补,应恢复
+    repo = GitRepo(folder)
+    repo.init()
+    subprocess.run(["git", "-C", str(folder), "config", "--unset", "core.fsync"])
+    subprocess.run(["git", "-C", str(folder), "config", "--unset", "core.fsyncMethod"])
+    assert _cfg(folder, "core.fsync") == ""        # 确认已抹掉
+    repo.apply_durability_config()                  # 幂等补设
+    assert _cfg(folder, "core.fsync") == "committed"
+    assert _cfg(folder, "core.fsyncMethod") == "fsync"

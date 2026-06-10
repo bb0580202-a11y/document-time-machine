@@ -1,8 +1,10 @@
 from pathlib import Path
 
+import pytest
 from docx import Document
 
 from dtm.engine.repo import GitRepo
+from dtm.engine.errors import DtmError
 from dtm.engine import backup, restore
 
 
@@ -85,6 +87,54 @@ def test_restore_makes_pre_restore_snapshot(folder):
     msgs = [e.message for e in repo.log()]
     assert any("pre-restore" in m for m in msgs)
     assert len(repo.log()) > before
+
+
+def test_restore_version_skips_deleted_file_in_mixed_version(folder):
+    """D2：一版里既改了文件又删了文件——还原这一版只导出还在的文件,
+    绝不对被删文件调 show_file(必败、还误报"历史损坏"吓人)。"""
+    repo, _ = _commit_docx(folder, "甲.docx", "甲内容")
+    _commit_docx(folder, "乙.docx", "乙内容")          # 现有 甲+乙
+    # 这一版：删掉甲、改乙(混合版)
+    (folder / "甲.docx").unlink()
+    doc = Document(); doc.add_paragraph("乙改了"); doc.save(folder / "乙.docx")
+    mixed = backup.do_backup(repo, folder).commit_id
+    res = restore.restore_version(repo, folder, mixed)
+    # 只导出了"乙"这一个还在的文件,没崩
+    assert len(res.restored_paths) == 1
+    out = Path(res.restored_paths[0])
+    assert out.name.startswith("乙") and "恢复自" in out.name
+    assert "乙改了" in Document(out).paragraphs[0].text
+
+
+def test_restore_version_pure_deletion_gives_human_message(folder):
+    """D2：这一版的唯一变化就是删文件——没有内容可还原。
+    给人话提示(点名被删文件 + 指向上一版),绝不崩、绝不冒"历史损坏"天书。"""
+    repo, _ = _commit_docx(folder, "甲.docx", "甲内容")
+    _commit_docx(folder, "乙.docx", "乙内容")          # 现有 甲+乙
+    (folder / "甲.docx").unlink()                       # 这一版只删甲
+    deletion = backup.do_backup(repo, folder).commit_id
+    with pytest.raises(DtmError) as e:
+        restore.restore_version(repo, folder, deletion)
+    assert "甲" in str(e.value)                          # 点名被删文件
+    assert "上一版" in str(e.value)                       # 指路
+    assert "损坏" not in str(e.value)                     # 不冒吓人的"历史损坏"
+
+
+def test_restore_version_pre_restore_commit_not_empty_when_clean(folder):
+    """D3：工作区干净时 do_backup 不提交、返回空 id;restore 侧须回退到 HEAD,
+    不能把空串当 pre_restore_commit 传出去。"""
+    repo, cid = _commit_docx(folder, "正文.docx", "内容")   # 提交后工作区干净
+    res = restore.restore_version(repo, folder, cid)
+    assert res.pre_restore_commit == repo.head()
+    assert res.pre_restore_commit                            # 非空
+
+
+def test_safe_restore_pre_restore_commit_not_empty_when_clean(folder):
+    """D3：safe_restore 同样在工作区干净时回退到 HEAD。"""
+    repo, cid = _commit_docx(folder, "正文.docx", "内容")
+    res = restore.safe_restore(repo, folder, cid, "正文.docx")
+    assert res.pre_restore_commit == repo.head()
+    assert res.pre_restore_commit
 
 
 def test_restore_succeeds_despite_stale_office_lock_file(folder):
